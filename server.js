@@ -9,7 +9,6 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 10000;
 
-// Κρατάμε τον αριθμό των online χρηστών
 let onlineCount = 0;
 
 app.get('/', (req, res) => {
@@ -22,7 +21,6 @@ app.get('/', (req, res) => {
         <title>Radio Live Chat</title>
         <style>
             body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
-            document { box-sizing: border-box; }
             #chat-container { display: flex; flex-direction: column; height: 100vh; max-width: 100%; background: #fff; }
             #chat-header { background: #007bff; color: white; padding: 12px; font-weight: bold; text-align: center; font-size: 16px; position: relative; }
             #online-counter { position: absolute; right: 15px; top: 12px; background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; }
@@ -40,7 +38,6 @@ app.get('/', (req, res) => {
     <div id="chat-container">
         <div id="chat-header">
             📻 Radio Live Chat
-            <!-- Εδώ εμφανίζεται το πράσινο κουτάκι των Online χρηστών -->
             <span id="online-counter">Online: 0</span>
         </div>
         <div id="chat-messages">
@@ -58,6 +55,10 @@ app.get('/', (req, res) => {
     <script>
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(protocol + window.location.host);
+
+        // Παραγωγή τυχαίου χρώματος για τον τρέχοντα χρήστη κατά τη σύνδεση
+        const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#e83e8c', '#20c997', '#17a2b8', '#ffc107'];
+        const userColor = colors[Math.floor(Math.random() * colors.length)];
 
         const messagesContainer = document.getElementById('chat-messages');
         const statusContainer = document.getElementById('connection-status');
@@ -78,7 +79,6 @@ app.get('/', (req, res) => {
             try {
                 const data = JSON.parse(event.data);
                 
-                // Αν το μήνυμα αφορά τον αριθμό των online χρηστών
                 if (data.type === 'update-online') {
                     onlineCounter.innerHTML = 'Online: ' + data.count;
                     return;
@@ -86,7 +86,8 @@ app.get('/', (req, res) => {
 
                 const messageElement = document.createElement('div');
                 messageElement.style.marginBottom = '8px';
-                messageElement.innerHTML = \`<strong style="color: #007bff;">\${data.username}:</strong> \${data.text}\`;
+                // Χρησιμοποιούμε το χρώμα που έστειλε ο χρήστης για το όνομά του
+                messageElement.innerHTML = \`<strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}\`;
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             } catch (e) {
@@ -106,7 +107,8 @@ app.get('/', (req, res) => {
             const text = messageInput.value.trim();
             if (text === '' || socket.readyState !== WebSocket.OPEN) return;
 
-            const messageData = { username: username, text: text };
+            // Στέλνουμε το μήνυμα μαζί με το τυχαίο χρώμα του χρήστη
+            const messageData = { username: username, text: text, color: userColor };
             socket.send(JSON.stringify(messageData));
             messageInput.value = '';
         }
@@ -123,7 +125,6 @@ app.get('/', (req, res) => {
 
 // Διαχείριση των WebSockets
 wss.on('connection', (ws) => {
-    // Αυξάνουμε τον μετρητή όταν μπαίνει κάποιος
     onlineCount++;
     broadcastOnlineCount();
 
@@ -135,7 +136,6 @@ wss.on('connection', (ws) => {
         });
     });
 
-    // Μειώνουμε τον μετρητή όταν κάποιος βγαίνει (κλείνει τη σελίδα)
     ws.on('close', () => {
         onlineCount--;
         if (onlineCount < 0) onlineCount = 0;
@@ -143,7 +143,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-// Συνάρτηση που στέλνει σε όλους τον νέο αριθμό online χρηστών
 function broadcastOnlineCount() {
     const data = JSON.stringify({ type: 'update-online', count: onlineCount });
     wss.clients.forEach((client) => {
