@@ -49,8 +49,8 @@ app.get('/', (req, res) => {
 
     <script>
         // Αυτόματη εύρεση του σωστού πρωτοκόλλου (ws ή wss) ανάλογα με το αν είμαστε σε ασφαλή σελίδα
-        const protocol = window.location.protocol === 'https://panagiotis-live-chat.onrender.com';
-        const socket = new WebSocket(protocol + window.location.host);
+       const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+const socket = new WebSocket(protocol + window.location.host);
 
         const messagesContainer = document.getElementById('chat-messages');
         const statusContainer = document.getElementById('connection-status');
