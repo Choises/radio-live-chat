@@ -9,7 +9,9 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 10000;
 
-// Όταν κάποιος μπαίνει στο URL, του σερβίρουμε το Chat Room
+// Κρατάμε τον αριθμό των online χρηστών
+let onlineCount = 0;
+
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -20,8 +22,10 @@ app.get('/', (req, res) => {
         <title>Radio Live Chat</title>
         <style>
             body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
+            document { box-sizing: border-box; }
             #chat-container { display: flex; flex-direction: column; height: 100vh; max-width: 100%; background: #fff; }
-            #chat-header { background: #007bff; color: white; padding: 12px; font-weight: bold; text-align: center; font-size: 16px; }
+            #chat-header { background: #007bff; color: white; padding: 12px; font-weight: bold; text-align: center; font-size: 16px; position: relative; }
+            #online-counter { position: absolute; right: 15px; top: 12px; background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; }
             #chat-messages { flex: 1; padding: 15px; overflow-y: auto; font-size: 14px; line-height: 1.4; border-bottom: 1px solid #eee; }
             #chat-inputs { padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
             #chat-username { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
@@ -34,7 +38,11 @@ app.get('/', (req, res) => {
     <body>
 
     <div id="chat-container">
-        <div id="chat-header">📻 Radio Live Chat</div>
+        <div id="chat-header">
+            📻 Radio Live Chat
+            <!-- Εδώ εμφανίζεται το πράσινο κουτάκι των Online χρηστών -->
+            <span id="online-counter">Online: 0</span>
+        </div>
         <div id="chat-messages">
             <div id="connection-status" style="color: #888; text-align: center; font-style: italic;">Σύνδεση στο chat...</div>
         </div>
@@ -48,15 +56,15 @@ app.get('/', (req, res) => {
     </div>
 
     <script>
-        // Αυτόματη εύρεση του σωστού πρωτοκόλλου (ws ή wss) ανάλογα με το αν είμαστε σε ασφαλή σελίδα
-       const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-const socket = new WebSocket(protocol + window.location.host);
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socket = new WebSocket(protocol + window.location.host);
 
         const messagesContainer = document.getElementById('chat-messages');
         const statusContainer = document.getElementById('connection-status');
         const usernameInput = document.getElementById('chat-username');
         const messageInput = document.getElementById('chat-message');
         const sendButton = document.getElementById('chat-send');
+        const onlineCounter = document.getElementById('online-counter');
 
         socket.onopen = () => {
             statusContainer.innerHTML = '🟢 Συνδεθήκατε στο Chat!';
@@ -69,6 +77,13 @@ const socket = new WebSocket(protocol + window.location.host);
         socket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+                
+                // Αν το μήνυμα αφορά τον αριθμό των online χρηστών
+                if (data.type === 'update-online') {
+                    onlineCounter.innerHTML = 'Online: ' + data.count;
+                    return;
+                }
+
                 const messageElement = document.createElement('div');
                 messageElement.style.marginBottom = '8px';
                 messageElement.innerHTML = \`<strong style="color: #007bff;">\${data.username}:</strong> \${data.text}\`;
@@ -106,19 +121,38 @@ const socket = new WebSocket(protocol + window.location.host);
     `);
 });
 
-// Διαχείριση των WebSockets (Μηνύματα)
+// Διαχείριση των WebSockets
 wss.on('connection', (ws) => {
+    // Αυξάνουμε τον μετρητή όταν μπαίνει κάποιος
+    onlineCount++;
+    broadcastOnlineCount();
+
     ws.on('message', (message) => {
-        // Αναμετάδοση του μηνύματος σε όλους τους συνδεδεμένους χρήστες
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(message.toString());
             }
         });
     });
+
+    // Μειώνουμε τον μετρητή όταν κάποιος βγαίνει (κλείνει τη σελίδα)
+    ws.on('close', () => {
+        onlineCount--;
+        if (onlineCount < 0) onlineCount = 0;
+        broadcastOnlineCount();
+    });
 });
+
+// Συνάρτηση που στέλνει σε όλους τον νέο αριθμό online χρηστών
+function broadcastOnlineCount() {
+    const data = JSON.stringify({ type: 'update-online', count: onlineCount });
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(data);
+        }
+    });
+}
 
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-
