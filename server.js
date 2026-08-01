@@ -31,6 +31,8 @@ app.get('/', (req, res) => {
             #chat-message { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             #chat-send { background: #007bff; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
             #chat-send:hover { background: #0056b3; }
+            .delete-btn { background: #dc3545; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 8px; font-weight: bold; }
+            .delete-btn:hover { background: #bd2130; }
         </style>
     </head>
     <body>
@@ -56,20 +58,21 @@ app.get('/', (req, res) => {
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(protocol + window.location.host);
 
-        // Φόρτωση των 3 διαφορετικών ήχων
-        const soundJoin = new Audio('https://xat.gr/rooms/sounds/private.mp3?v=1.38'); // Ήχος εισόδου
-        const soundSend = new Audio('https://xat.gr/rooms/sounds/username.mp3?v=1.38'); // Ήχος όταν στέλνω εγώ
-        const soundReceive = new Audio('https://xat.gr/rooms/sounds/whistle.mp3?v=1.38'); // Ήχος όταν έρχεται μήνυμα
+        // --- ΒΑΛΤΕ ΤΑ ΔΙΚΑ ΣΟΥ Links ΗΧΩΝ ΑΝΑΜΕΣΑ ΣΤΑ ΑΥΤΑΚΙΑ ---
+        const soundJoin = new Audio('https://xat.gr/rooms/sounds/private.mp3?v=1.38'); 
+        const soundSend = new Audio('https://xat.gr/rooms/sounds/username.mp3?v=1.38'); 
+        const soundReceive = new Audio('https://xat.gr/rooms/sounds/whistle.mp3?v=1.38'); 
 
-        // Μειώνουμε λίγο την ένταση για να μην είναι ενοχλητικοί
         soundJoin.volume = 0.4;
         soundSend.volume = 0.3;
         soundReceive.volume = 0.5;
 
+        // Έλεγχος αν ο χρήστης άνοιξε τη σελίδα ως διαχειριστής (αν το URL έχει ?admin=true)
+        const urlParams = new URLSearchParams(window.location.search);
+        const isAdmin = urlParams.get('admin') === 'true';
+
         const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#e83e8c', '#20c997', '#17a2b8', '#ffc107'];
         const userColor = colors[Math.floor(Math.random() * colors.length)];
-
-        // Παραγωγή ενός τυχαίου ID για να ξέρει η συσκευή αν το μήνυμα είναι δικό της ή άλλου
         const myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 
         const messagesContainer = document.getElementById('chat-messages');
@@ -95,24 +98,39 @@ app.get('/', (req, res) => {
                 
                 if (data.type === 'update-online') {
                     onlineCounter.innerHTML = 'Online: ' + data.count;
-                    
-                    // Αν ο αριθμός των online αυξήθηκε, παίξε ήχο εισόδου χρήστη
                     if (data.count > lastOnlineCount && lastOnlineCount !== 0) {
-                        soundJoin.play().catch(e => console.log('Απαιτείται κλικ για ήχο'));
+                        soundJoin.play().catch(e => console.log('Απαιτείται κλικ'));
                     }
                     lastOnlineCount = data.count;
                     return;
                 }
 
+                // Λήψη εντολής διαγραφής από τον server
+                if (data.type === 'delete-message') {
+                    const elToRemove = document.getElementById(data.messageId);
+                    if (elToRemove) elToRemove.remove();
+                    return;
+                }
+
+                // Δημιουργία μηνύματος με μοναδικό ID για να μπορούμε να το σβήσουμε
                 const messageElement = document.createElement('div');
+                messageElement.id = data.messageId;
                 messageElement.style.marginBottom = '8px';
-                messageElement.innerHTML = \`<strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}\`;
+                messageElement.style.display = 'flex';
+                messageElement.style.alignItems = 'center';
+
+                // Αν είμαι admin, πρόσθεσε το κόκκινο κουμπί διαγραφής
+                let deleteHtml = '';
+                if (isAdmin) {
+                    deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${data.messageId}')">X</button>\`;
+                }
+
+                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}</div>\`;
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-                // Έλεγχος ήχου μηνύματος: Αν το έστειλε άλλος, παίξε ήχο λήψης
                 if (data.userId !== myUserId) {
-                    soundReceive.play().catch(e => console.log('Απαιτείται κλικ για ήχο'));
+                    soundReceive.play().catch(e => console.log('Απαιτείται κλικ'));
                 }
             } catch (e) {
                 console.error(e);
@@ -131,12 +149,29 @@ app.get('/', (req, res) => {
             const text = messageInput.value.trim();
             if (text === '' || socket.readyState !== WebSocket.OPEN) return;
 
-            // Παίζουμε αμέσως τον ήχο αποστολής στη δική μας συσκευή
-            soundSend.play().catch(e => console.log('Απαιτείται κλικ για ήχο'));
+            soundSend.play().catch(e => console.log('Απαιτείται κλικ'));
 
-            const messageData = { username: username, text: text, color: userColor, userId: myUserId };
+            // Δημιουργούμε ένα τυχαίο ID για το συγκεκριμένο μήνυμα
+            const uniqueMsgId = 'msg_' + Math.random().toString(36).substr(2, 9);
+
+            const messageData = { 
+                type: 'chat-message',
+                messageId: uniqueMsgId, 
+                username: username, 
+                text: text, 
+                color: userColor, 
+                userId: myUserId 
+            };
             socket.send(JSON.stringify(messageData));
             messageInput.value = '';
+        }
+
+        // Συνάρτηση του Admin που στέλνει εντολή διαγραφής στον server
+        function requestDelete(msgId) {
+            if(confirm("Θέλετε σίγουρα να διαγράψετε αυτό το μήνυμα;")) {
+                const deleteData = { type: 'delete-message', messageId: msgId };
+                socket.send(JSON.stringify(deleteData));
+            }
         }
 
         sendButton.addEventListener('click', sendMessage);
@@ -149,12 +184,13 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Διαχείριση των WebSockets
+// Διαχείριση των WebSockets (Server)
 wss.on('connection', (ws) => {
     onlineCount++;
     broadcastOnlineCount();
 
     ws.on('message', (message) => {
+        // Ο server προωθεί αυτούσιο ό,τι έλαβε (μήνυμα ή εντολή διαγραφής) σε όλους
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(message.toString());
