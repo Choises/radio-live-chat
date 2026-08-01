@@ -10,6 +10,8 @@ const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 10000;
 
 let onlineCount = 0;
+// Πίνακας που θα αποθηκεύει προσωρινά τα τελευταία 20 μηνύματα
+let messageHistory = []; 
 
 app.get('/', (req, res) => {
     res.send(`
@@ -67,7 +69,6 @@ app.get('/', (req, res) => {
         soundSend.volume = 0.3;
         soundReceive.volume = 0.5;
 
-        // Έλεγχος αν ο χρήστης άνοιξε τη σελίδα ως διαχειριστής (αν το URL έχει ?admin=true)
         const urlParams = new URLSearchParams(window.location.search);
         const isAdmin = urlParams.get('admin') === 'true';
 
@@ -105,37 +106,56 @@ app.get('/', (req, res) => {
                     return;
                 }
 
-                // Λήψη εντολής διαγραφής από τον server
                 if (data.type === 'delete-message') {
                     const elToRemove = document.getElementById(data.messageId);
                     if (elToRemove) elToRemove.remove();
                     return;
                 }
 
-                // Δημιουργία μηνύματος με μοναδικό ID για να μπορούμε να το σβήσουμε
-                const messageElement = document.createElement('div');
-                messageElement.id = data.messageId;
-                messageElement.style.marginBottom = '8px';
-                messageElement.style.display = 'flex';
-                messageElement.style.alignItems = 'center';
-
-                // Αν είμαι admin, πρόσθεσε το κόκκινο κουμπί διαγραφής
-                let deleteHtml = '';
-                if (isAdmin) {
-                    deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${data.messageId}')">X</button>\`;
+                // Λήψη ολόκληρου του ιστορικού κατά την πρώτη σύνδεση
+                if (data.type === 'history') {
+                    // Καθαρίζουμε τυχόν παλιά μηνύματα από την οθόνη (εκτός από το status)
+                    const statusHtml = statusContainer.outerHTML;
+                    messagesContainer.innerHTML = statusHtml;
+                    
+                    data.messages.forEach(msg => {
+                        renderSingleMessage(msg, false); // false για να μην παίξει ήχο για τα παλιά
+                    });
+                    return;
                 }
 
-                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}</div>\`;
-                messagesContainer.appendChild(messageElement);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                if (data.userId !== myUserId) {
-                    soundReceive.play().catch(e => console.log('Απαιτείται κλικ'));
+                if (data.type === 'chat-message') {
+                    renderSingleMessage(data, true); // true για να παίξει ήχο στο νέο μήνυμα
                 }
             } catch (e) {
                 console.error(e);
             }
         };
+
+        // Συνάρτηση που σχεδιάζει το μήνυμα στην οθόνη
+        function renderSingleMessage(msgData, shouldPlaySound) {
+            // Αν υπάρχει ήδη στην οθόνη, μην το ξαναβάζεις
+            if (document.getElementById(msgData.messageId)) return;
+
+            const messageElement = document.createElement('div');
+            messageElement.id = msgData.messageId;
+            messageElement.style.marginBottom = '8px';
+            messageElement.style.display = 'flex';
+            messageElement.style.alignItems = 'center';
+
+            let deleteHtml = '';
+            if (isAdmin) {
+                deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${msgData.messageId}')">X</button>\`;
+            }
+
+            messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${msgData.color || '#007bff'};">\${msgData.username}:</strong> \${msgData.text}</div>\`;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            if (shouldPlaySound && msgData.userId !== myUserId) {
+                soundReceive.play().catch(e => console.log('Απαιτείται κλικ'));
+            }
+        }
 
         socket.onclose = () => {
             statusContainer.innerHTML = '🔴 Η σύνδεση χάθηκε. Ανανεώστε τη σελίδα.';
@@ -151,7 +171,6 @@ app.get('/', (req, res) => {
 
             soundSend.play().catch(e => console.log('Απαιτείται κλικ'));
 
-            // Δημιουργούμε ένα τυχαίο ID για το συγκεκριμένο μήνυμα
             const uniqueMsgId = 'msg_' + Math.random().toString(36).substr(2, 9);
 
             const messageData = { 
@@ -166,12 +185,10 @@ app.get('/', (req, res) => {
             messageInput.value = '';
         }
 
-        // Συνάρτηση του Admin που στέλνει εντολή διαγραφής στον server
+        // ΑΦΑΙΡΕΘΗΚΕ ΤΟ CONFIRM - ΣΒΗΝΕΙ ΑΜΕΣΩΣ!
         function requestDelete(msgId) {
-            if(confirm("Θέλετε σίγουρα να διαγράψετε αυτό το μήνυμα;")) {
-                const deleteData = { type: 'delete-message', messageId: msgId };
-                socket.send(JSON.stringify(deleteData));
-            }
+            const deleteData = { type: 'delete-message', messageId: msgId };
+            socket.send(JSON.stringify(deleteData));
         }
 
         sendButton.addEventListener('click', sendMessage);
@@ -189,31 +206,25 @@ wss.on('connection', (ws) => {
     onlineCount++;
     broadcastOnlineCount();
 
+    // Μόλις συνδεθεί ένας χρήστης, του στέλνουμε αμέσως το ιστορικό των προηγούμενων μηνυμάτων
+    ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));
+
     ws.on('message', (message) => {
-        // Ο server προωθεί αυτούσιο ό,τι έλαβε (μήνυμα ή εντολή διαγραφής) σε όλους
-        wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(message.toString());
+        const data = JSON.parse(message.toString());
+
+        // Αν είναι κανονικό μήνυμα, το αποθηκεύουμε στο ιστορικό του server
+        if (data.type === 'chat-message') {
+            messageHistory.push(data);
+            // Κρατάμε μόνο τα τελευταία 20 μηνύματα για να μην γεμίζει η μνήμη
+            if (messageHistory.length > 20) {
+                messageHistory.shift(); 
             }
-        });
-    });
-
-    ws.on('close', () => {
-        onlineCount--;
-        if (onlineCount < 0) onlineCount = 0;
-        broadcastOnlineCount();
-    });
-});
-
-function broadcastOnlineCount() {
-    const data = JSON.stringify({ type: 'update-online', count: onlineCount });
-    wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(data);
         }
-    });
-}
 
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+        // Αν είναι εντολή διαγραφής, αφαιρούμε το μήνυμα και από το ιστορικό του server
+        if (data.type === 'delete-message') {
+            messageHistory = messageHistory.filter(msg => msg.messageId !== data.messageId);
+        }
+
+        // Προώθηση σε όλους
+wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
