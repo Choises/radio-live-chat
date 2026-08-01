@@ -56,9 +56,21 @@ app.get('/', (req, res) => {
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(protocol + window.location.host);
 
-        // Παραγωγή τυχαίου χρώματος για τον τρέχοντα χρήστη κατά τη σύνδεση
+        // Φόρτωση των 3 διαφορετικών ήχων
+        const soundJoin = new Audio('https://mixkit.co'); // Ήχος εισόδου
+        const soundSend = new Audio('https://mixkit.co'); // Ήχος όταν στέλνω εγώ
+        const soundReceive = new Audio('https://mixkit.co'); // Ήχος όταν έρχεται μήνυμα
+
+        // Μειώνουμε λίγο την ένταση για να μην είναι ενοχλητικοί
+        soundJoin.volume = 0.4;
+        soundSend.volume = 0.3;
+        soundReceive.volume = 0.5;
+
         const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#e83e8c', '#20c997', '#17a2b8', '#ffc107'];
         const userColor = colors[Math.floor(Math.random() * colors.length)];
+
+        // Παραγωγή ενός τυχαίου ID για να ξέρει η συσκευή αν το μήνυμα είναι δικό της ή άλλου
+        const myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 
         const messagesContainer = document.getElementById('chat-messages');
         const statusContainer = document.getElementById('connection-status');
@@ -66,6 +78,8 @@ app.get('/', (req, res) => {
         const messageInput = document.getElementById('chat-message');
         const sendButton = document.getElementById('chat-send');
         const onlineCounter = document.getElementById('online-counter');
+
+        let lastOnlineCount = 0;
 
         socket.onopen = () => {
             statusContainer.innerHTML = '🟢 Συνδεθήκατε στο Chat!';
@@ -81,15 +95,25 @@ app.get('/', (req, res) => {
                 
                 if (data.type === 'update-online') {
                     onlineCounter.innerHTML = 'Online: ' + data.count;
+                    
+                    // Αν ο αριθμός των online αυξήθηκε, παίξε ήχο εισόδου χρήστη
+                    if (data.count > lastOnlineCount && lastOnlineCount !== 0) {
+                        soundJoin.play().catch(e => console.log('Απαιτείται κλικ για ήχο'));
+                    }
+                    lastOnlineCount = data.count;
                     return;
                 }
 
                 const messageElement = document.createElement('div');
                 messageElement.style.marginBottom = '8px';
-                // Χρησιμοποιούμε το χρώμα που έστειλε ο χρήστης για το όνομά του
                 messageElement.innerHTML = \`<strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}\`;
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                // Έλεγχος ήχου μηνύματος: Αν το έστειλε άλλος, παίξε ήχο λήψης
+                if (data.userId !== myUserId) {
+                    soundReceive.play().catch(e => console.log('Απαιτείται κλικ για ήχο'));
+                }
             } catch (e) {
                 console.error(e);
             }
@@ -107,8 +131,10 @@ app.get('/', (req, res) => {
             const text = messageInput.value.trim();
             if (text === '' || socket.readyState !== WebSocket.OPEN) return;
 
-            // Στέλνουμε το μήνυμα μαζί με το τυχαίο χρώμα του χρήστη
-            const messageData = { username: username, text: text, color: userColor };
+            // Παίζουμε αμέσως τον ήχο αποστολής στη δική μας συσκευή
+            soundSend.play().catch(e => console.log('Απαιτείται κλικ για ήχο'));
+
+            const messageData = { username: username, text: text, color: userColor, userId: myUserId };
             socket.send(JSON.stringify(messageData));
             messageInput.value = '';
         }
