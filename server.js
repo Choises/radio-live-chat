@@ -10,7 +10,6 @@ const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 10000;
 
 let onlineCount = 0;
-// Πίνακας που θα αποθηκεύει προσωρινά τα τελευταία 20 μηνύματα
 let messageHistory = []; 
 
 app.get('/', (req, res) => {
@@ -91,6 +90,9 @@ app.get('/', (req, res) => {
             statusContainer.style.fontWeight = 'bold';
             messageInput.disabled = false;
             sendButton.disabled = false;
+
+            // ΜΟΛΙΣ ΑΝΟΙΞΕΙ Η ΣΥΝΔΕΣΗ, ΖΗΤΑΜΕ ΤΟ ΙΣΤΟΡΙΚΟ ΑΠΟ ΤΟΝ SERVER
+            socket.send(JSON.stringify({ type: 'request-history' }));
         };
 
         socket.onmessage = (event) => {
@@ -112,29 +114,26 @@ app.get('/', (req, res) => {
                     return;
                 }
 
-                // Λήψη ολόκληρου του ιστορικού κατά την πρώτη σύνδεση
                 if (data.type === 'history') {
-                    // Καθαρίζουμε τυχόν παλιά μηνύματα από την οθόνη (εκτός από το status)
+                    // Καθαρίζουμε παλιά μηνύματα και κρατάμε μόνο το status σύνδεσης
                     const statusHtml = statusContainer.outerHTML;
                     messagesContainer.innerHTML = statusHtml;
                     
                     data.messages.forEach(msg => {
-                        renderSingleMessage(msg, false); // false για να μην παίξει ήχο για τα παλιά
+                        renderSingleMessage(msg, false); 
                     });
                     return;
                 }
 
                 if (data.type === 'chat-message') {
-                    renderSingleMessage(data, true); // true για να παίξει ήχο στο νέο μήνυμα
+                    renderSingleMessage(data, true); 
                 }
             } catch (e) {
                 console.error(e);
             }
         };
 
-        // Συνάρτηση που σχεδιάζει το μήνυμα στην οθόνη
         function renderSingleMessage(msgData, shouldPlaySound) {
-            // Αν υπάρχει ήδη στην οθόνη, μην το ξαναβάζεις
             if (document.getElementById(msgData.messageId)) return;
 
             const messageElement = document.createElement('div');
@@ -185,7 +184,6 @@ app.get('/', (req, res) => {
             messageInput.value = '';
         }
 
-        // ΑΦΑΙΡΕΘΗΚΕ ΤΟ CONFIRM - ΣΒΗΝΕΙ ΑΜΕΣΩΣ!
         function requestDelete(msgId) {
             const deleteData = { type: 'delete-message', messageId: msgId };
             socket.send(JSON.stringify(deleteData));
@@ -206,25 +204,40 @@ wss.on('connection', (ws) => {
     onlineCount++;
     broadcastOnlineCount();
 
-    // Μόλις συνδεθεί ένας χρήστης, του στέλνουμε αμέσως το ιστορικό των προηγούμενων μηνυμάτων
-    ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));
-
     ws.on('message', (message) => {
         const data = JSON.parse(message.toString());
 
-        // Αν είναι κανονικό μήνυμα, το αποθηκεύουμε στο ιστορικό του server
+        // Ο SERVER ΣΤΕΛΝΕΙ ΤΟ ΙΣΤΟΡΙΚΟ ΜΟΝΟ ΟΤΑΝ ΤΟΥ ΤΟ ΖΗΤΗΣΕΙ Η ΣΥΣΚΕΥΗ
+        if (data.type === 'request-history') {
+            ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));
+            return;
+        }
+
         if (data.type === 'chat-message') {
             messageHistory.push(data);
-            // Κρατάμε μόνο τα τελευταία 20 μηνύματα για να μην γεμίζει η μνήμη
             if (messageHistory.length > 20) {
                 messageHistory.shift(); 
             }
         }
 
-        // Αν είναι εντολή διαγραφής, αφαιρούμε το μήνυμα και από το ιστορικό του server
         if (data.type === 'delete-message') {
             messageHistory = messageHistory.filter(msg => msg.messageId !== data.messageId);
         }
 
-        // Προώθηση σε όλους
-wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
+        wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message.toString());
+            }
+        });
+    });
+
+    ws.on('close', () => {
+        onlineCount--;
+        if (onlineCount < 0) onlineCount = 0;
+        broadcastOnlineCount();
+    });
+});
+
+function broadcastOnlineCount() {
+    const data = JSON.stringify({ type: 'update-online', count: onlineCount });
+wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
