@@ -57,9 +57,9 @@ app.get('/', (req, res) => {
         const socket = new WebSocket(protocol + window.location.host);
 
         // Φόρτωση των 3 διαφορετικών ήχων
-        const soundJoin = new Audio('https://mixkit.co'); // Ήχος εισόδου
-        const soundSend = new Audio('https://mixkit.co'); // Ήχος όταν στέλνω εγώ
-        const soundReceive = new Audio('https://mixkit.co'); // Ήχος όταν έρχεται μήνυμα
+        const soundJoin = new Audio('https://xat.gr/rooms/sounds/private.mp3?v=1.38'); // Ήχος εισόδου
+        const soundSend = new Audio('https://xat.gr/rooms/sounds/username.mp3?v=1.38'); // Ήχος όταν στέλνω εγώ
+        const soundReceive = new Audio('https://xat.gr/rooms/sounds/whistle.mp3?v=1.38'); // Ήχος όταν έρχεται μήνυμα
 
         // Μειώνουμε λίγο την ένταση για να μην είναι ενοχλητικοί
         soundJoin.volume = 0.4;
