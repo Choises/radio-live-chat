@@ -11,6 +11,11 @@ const PORT = process.env.PORT || 10000;
 
 let onlineCount = 0;
 
+// --- ΡΥΘΜΙΣΗ ΣΥΝΔΕΣΗΣ ΜΕ SUPABASE ---
+// Αντικαταστήστε τα παρακάτω με τα δικά σας στοιχεία από το Σημειωματάριο!
+const SUPABASE_URL = 'https://uvfnwfesotvcajzdictq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_hE6t_nKrtpVqOsgd6XkXow_nf_RJY3j'; // Βάλαμε το νέο σας Publishable Key
+
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -32,8 +37,6 @@ app.get('/', (req, res) => {
             #chat-message { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             #chat-send { background: #007bff; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
             #chat-send:hover { background: #0056b3; }
-            
-            /* Στυλ για το κόκκινο κουμπί διαγραφής */
             .delete-btn { background: #dc3545; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 8px; font-weight: bold; }
             .delete-btn:hover { background: #bd2130; }
         </style>
@@ -70,11 +73,9 @@ app.get('/', (req, res) => {
         soundSend.volume = 0.3;
         soundReceive.volume = 0.5;
 
-        // Έλεγχος αν ο χρήστης είναι admin (μέσω του URL ?admin=true)
         const urlParams = new URLSearchParams(window.location.search);
         const isAdmin = urlParams.get('admin') === 'true';
 
-        // Ρυθμίσεις χρωμάτων και αναγνωριστικών
         const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#e83e8c', '#20c997', '#17a2b8', '#ffc107'];
         const userColor = colors[Math.floor(Math.random() * colors.length)];
         const myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
@@ -94,6 +95,9 @@ app.get('/', (req, res) => {
             statusContainer.style.fontWeight = 'bold';
             messageInput.disabled = false;
             sendButton.disabled = false;
+            
+            // Μόλις συνδεθούμε, ζητάμε το ιστορικό
+            socket.send(JSON.stringify({ type: 'request-history' }));
         };
 
         socket.onmessage = (event) => {
@@ -109,37 +113,51 @@ app.get('/', (req, res) => {
                     return;
                 }
 
-                // Λήψη εντολής διαγραφής: Σβήνει το μήνυμα από την οθόνη ακαριαία
                 if (data.type === 'delete-message') {
                     const elToRemove = document.getElementById(data.messageId);
                     if (elToRemove) elToRemove.remove();
                     return;
                 }
 
-                // Δημιουργία νέου μηνύματος με ID
-                const messageElement = document.createElement('div');
-                messageElement.id = data.messageId;
-                messageElement.style.marginBottom = '8px';
-                messageElement.style.display = 'flex';
-                messageElement.style.alignItems = 'center';
-
-                // Αν είμαι admin, πρόσθεσε το κουμπί X χωρίς confirm
-                let deleteHtml = '';
-                if (isAdmin) {
-                    deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${data.messageId}')">X</button>\`;
+                if (data.type === 'history') {
+                    const statusHtml = statusContainer.outerHTML;
+                    messagesContainer.innerHTML = statusHtml;
+                    data.messages.forEach(msg => {
+                        renderSingleMessage(msg, false); 
+                    });
+                    return;
                 }
 
-                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}</div>\`;
-                messagesContainer.appendChild(messageElement);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                if (data.userId !== myUserId) {
-                    soundReceive.play().catch(e => console.log('Απαιτείται κλικ'));
+                if (data.type === 'chat-message') {
+                    renderSingleMessage(data, true); 
                 }
             } catch (e) {
                 console.error(e);
             }
         };
+
+        function renderSingleMessage(msgData, shouldPlaySound) {
+            if (document.getElementById(msgData.messageId)) return;
+
+            const messageElement = document.createElement('div');
+            messageElement.id = msgData.messageId;
+            messageElement.style.marginBottom = '8px';
+            messageElement.style.display = 'flex';
+            messageElement.style.alignItems = 'center';
+
+            let deleteHtml = '';
+            if (isAdmin) {
+                deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\ PacmsgData.messageId}')">X</button>\`;
+            }
+
+            messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${msgData.color || '#007bff'};">\${msgData.username}:</strong> \${msgData.text}</div>\`;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            if (shouldPlaySound && msgData.userId !== myUserId) {
+                soundReceive.play().catch(e => console.log('Απαιτείται κλικ'));
+            }
+        }
 
         socket.onclose = () => {
             statusContainer.innerHTML = '🔴 Η σύνδεση χάθηκε. Ανανεώστε τη σελίδα.';
@@ -155,7 +173,6 @@ app.get('/', (req, res) => {
 
             soundSend.play().catch(e => console.log('Απαιτείται κλικ'));
 
-            // Δημιουργία τυχαίου ID για το μήνυμα
             const uniqueMsgId = 'msg_' + Math.random().toString(36).substr(2, 9);
 
             const messageData = { 
@@ -170,7 +187,6 @@ app.get('/', (req, res) => {
             messageInput.value = '';
         }
 
-        // Η ΣΥΝΑΡΤΗΣΗ ΔΙΑΓΡΑΦΗΣ: Στέλνει αμέσως την εντολή χωρίς παράθυρο επιβεβαίωσης!
         function requestDelete(msgId) {
             const deleteData = { type: 'delete-message', messageId: msgId };
             socket.send(JSON.stringify(deleteData));
@@ -191,30 +207,20 @@ wss.on('connection', (ws) => {
     onlineCount++;
     broadcastOnlineCount();
 
-    ws.on('message', (message) => {
-        wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(message.toString());
-            }
-        });
-    });
+    ws.on('message', async (message) => {
+        const data = JSON.parse(message.toString());
 
-    ws.on('close', () => {
-        onlineCount--;
-        if (onlineCount < 0) onlineCount = 0;
-        broadcastOnlineCount();
-    });
-});
-
-function broadcastOnlineCount() {
-    const data = JSON.stringify({ type: 'update-online', count: onlineCount });
-    wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(data);
-        }
-    });
-}
-
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+        // 1. ΟΤΑΝ ΜΙΑ ΣΥΣΚΕΥΗ ΖΗΤΑΕΙ ΤΟ ΙΣΤΟΡΙΚΟ: Το τραβάμε live από τη βάση Supabase!
+        if (data.type === 'request-history') {
+            try {
+                // Καλούμε το API της Supabase για να μας φέρει τα τελευταία 20 μηνύματα
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/chat_history?select=*&order=created_at.desc&limit=20`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                const messages = await response.json();
+                
+                // Τα μηνύματα έρχονται ανάποδα λόγω του desc, οπότε τα γυρνάμε στη σωστή σειρά
+                if (Array.isArray(messages)) {
+                    const sortedMessages = messages.reverse().map(m => ({
+                        messageId: m.message_id,
+username: m.username,text: m.text,color: m.color,userId: m.user_id}));ws.send(JSON.stringify({ type: 'history', messages: sortedMessages }));}} catch (err) {console.error('Σφάλμα φόρτωσης ιστορικού:', err);ws.send(JSON.stringify({ type: 'history', messages: [] }));}return;}// 2. ΟΤΑΝ ΕΡΧΕΤΑΙ ΝΕΟ ΜΗΝΥΜΑ: Το αποθηκεύουμε μόνιμα στη βάση Supabaseif (data.type === 'chat-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history, {method: 'POST',headers: {'apikey': SUPABASE_KEY,'Authorization': Bearer ${SUPABASE_KEY},'Content-Type': 'application/json','Prefer': 'return=minimal'},body: JSON.stringify({message_id: data.messageId,username: data.username,text: data.text,color: data.color,user_id: data.userId})});} catch (err) {console.error('Σφάλμα αποθήκευσης στη βάση:', err);}}// 3. ΟΤΑΝ ΕΡΧΕΤΑΙ ΕΝΤΟΛΗ ΔΙΑΓΡΑΦΗΣ: Το σβήνουμε μόνιμα και από τη βάση Supabaseif (data.type === 'delete-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history?message_id=eq.${data.messageId}, {method: 'DELETE',headers: { 'apikey': SUPABASE_KEY, 'Authorization': Bearer ${SUPABASE_KEY} }});} catch (err) {console.error('Σφάλμα διαγραφής από τη βάση:', err);}}// Προώθηση σε όλουςwss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
