@@ -12,12 +12,12 @@ const PORT = process.env.PORT || 10000;
 let onlineCount = 0;
 
 // =========================================================================
-// 🔴 ΒΗΜΑ Α: ΒΑΛΤΕ ΕΔΩ ΤΟ PROJECT URL ΑΠΟ ΤΟ SUPABASE (Μέσα στα αυτάκια ' ')
+// 🔴 ΒΗΜΑ Α: ΡΥΘΜΙΣΗ ΣΥΝΔΕΣΗΣ ΜΕ SUPABASE (Βάλτε τα δικά σας στοιχεία)
 // =========================================================================
 const SUPABASE_URL = 'https://uvfnwfesotvcajzdictq.supabase.co';
 
-// Το δικό σας Publishable Key από το Supabase είναι ήδη τοποθετημένο εδώ:
-const SUPABASE_KEY = 'sb_publishable_hE6t_nKrtpVqOsgd6XkXow_nf_RJY3j'; 
+// ΑΝΤΙΚΑΤΑΣΤΗΣΤΕ ΤΟ ΠΑΡΑΚΑΤΩ ΜΕ ΤΟ SECRET KEY (sb_secret_...) ΠΟΥ ΑΝΤΙΓΡΑΨΑΤΕ!
+const SUPABASE_KEY = 'sb_secret_UpcmKZ30QmwPCRXvche8FA_mHBYQwwu'; 
 
 app.get('/', (req, res) => {
     res.send(`
@@ -151,7 +151,6 @@ app.get('/', (req, res) => {
 
             let deleteHtml = '';
             if (isAdmin) {
-                // ΔΙΟΡΘΩΘΗΚΕ: Αφαιρέθηκε το λάθος \ PacmsgData
                 deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${msgData.messageId}')">X</button>\`;
             }
 
@@ -217,10 +216,12 @@ wss.on('connection', (ws) => {
 
         if (data.type === 'request-history') {
             try {
+                // Προσθήκη σωστών headers για παράκαμψη RLS και έγκυρο Content-Type
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/chat_history?select=*&order=created_at.desc&limit=20`, {
-                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-                });
-                const messages = await response.json();
-                
-                if (Array.isArray(messages)) {
-const sortedMessages = messages.reverse().map(m => ({messageId: m.message_id,username: m.username,text: m.text,color: m.color,userId: m.user_id}));ws.send(JSON.stringify({ type: 'history', messages: sortedMessages }));}} catch (err) {console.error('Σφάλμα φόρτωσης ιστορικού:', err);ws.send(JSON.stringify({ type: 'history', messages: [] }));}return;}if (data.type === 'chat-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history, {method: 'POST',headers: {'apikey': SUPABASE_KEY,'Authorization': Bearer ${SUPABASE_KEY},'Content-Type': 'application/json','Prefer': 'return=minimal'},body: JSON.stringify({message_id: data.messageId,username: data.username,text: data.text,color: data.color,user_id: data.userId})});} catch (err) {console.error('Σφάλμα αποθήκευσης στη βάση:', err);}}if (data.type === 'delete-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history?message_id=eq.${data.messageId}, {method: 'DELETE',headers: { 'apikey': SUPABASE_KEY, 'Authorization': Bearer ${SUPABASE_KEY} }});} catch (err) {console.error('Σφάλμα διαγραφής από τη βάση:', err);}}wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
+                    headers: { 
+                        'apikey': SUPABASE_KEY, 
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+});const messages = await response.json();if (Array.isArray(messages)) {const sortedMessages = messages.reverse().map(m => ({messageId: m.message_id,username: m.username,text: m.text,color: m.color,userId: m.user_id}));ws.send(JSON.stringify({ type: 'history', messages: sortedMessages }));}} catch (err) {console.error('Σφάλμα φόρτωσης ιστορικού:', err);ws.send(JSON.stringify({ type: 'history', messages: [] }));}return;}if (data.type === 'chat-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history, {method: 'POST',headers: {'apikey': SUPABASE_KEY,'Authorization': Bearer ${SUPABASE_KEY},'Content-Type': 'application/json','Prefer': 'return=minimal'},body: JSON.stringify({message_id: data.messageId,username: data.username,text: data.text,color: data.color,user_id: data.userId})});} catch (err) {console.error('Σφάλμα αποθήκευσης στη βάση:', err);}}if (data.type === 'delete-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history?message_id=eq.${data.messageId}, {method: 'DELETE',headers: {'apikey': SUPABASE_KEY,'Authorization': Bearer ${SUPABASE_KEY},'Content-Type': 'application/json'}});} catch (err) {console.error('Σφάλμα διαγραφής από τη βάση:', err);}}wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
