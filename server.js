@@ -147,7 +147,7 @@ app.get('/', (req, res) => {
 
             let deleteHtml = '';
             if (isAdmin) {
-                deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\ PacmsgData.messageId}')">X</button>\`;
+                deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${msgData.messageId}')">X</button>\`;
             }
 
             messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${msgData.color || '#007bff'};">\${msgData.username}:</strong> \${msgData.text}</div>\`;
