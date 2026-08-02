@@ -11,10 +11,13 @@ const PORT = process.env.PORT || 10000;
 
 let onlineCount = 0;
 
-// --- ΡΥΘΜΙΣΗ ΣΥΝΔΕΣΗΣ ΜΕ SUPABASE ---
-// Αντικαταστήστε τα παρακάτω με τα δικά σας στοιχεία από το Σημειωματάριο!
+// =========================================================================
+// 🔴 ΒΗΜΑ Α: ΒΑΛΤΕ ΕΔΩ ΤΟ PROJECT URL ΑΠΟ ΤΟ SUPABASE (Μέσα στα αυτάκια ' ')
+// =========================================================================
 const SUPABASE_URL = 'https://uvfnwfesotvcajzdictq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_hE6t_nKrtpVqOsgd6XkXow_nf_RJY3j'; // Βάλαμε το νέο σας Publishable Key
+
+// Το δικό σας Publishable Key από το Supabase είναι ήδη τοποθετημένο εδώ:
+const SUPABASE_KEY = 'sb_publishable_hE6t_nKrtpVqOsgd6XkXow_nf_RJY3j'; 
 
 app.get('/', (req, res) => {
     res.send(`
@@ -64,7 +67,9 @@ app.get('/', (req, res) => {
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(protocol + window.location.host);
 
-        // --- ΒΑΛΤΕ ΤΑ ΔΙΚΑ ΣΟΥ Links ΗΧΩΝ ΑΝΑΜΕΣΑ ΣΤΑ ΑΥΤΑΚΙΑ ---
+        // =========================================================================
+        // 🔴 ΒΗΜΑ Β: ΒΑΛΤΕ ΕΔΩ ΤΑ ΔΙΚΑ ΣΟΥ LINKS ΗΧΩΝ ΑΝΑΜΕΣΑ ΣΤΑ ΑΥΤΑΚΙΑ ' '
+        // =========================================================================
         const soundJoin = new Audio('https://xat.gr/rooms/sounds/private.mp3?v=1.38'); 
         const soundSend = new Audio('https://xat.gr/rooms/sounds/username.mp3?v=1.38'); 
         const soundReceive = new Audio('https://xat.gr/rooms/sounds/whistle.mp3?v=1.38'); 
@@ -96,7 +101,6 @@ app.get('/', (req, res) => {
             messageInput.disabled = false;
             sendButton.disabled = false;
             
-            // Μόλις συνδεθούμε, ζητάμε το ιστορικό
             socket.send(JSON.stringify({ type: 'request-history' }));
         };
 
@@ -147,6 +151,7 @@ app.get('/', (req, res) => {
 
             let deleteHtml = '';
             if (isAdmin) {
+                // ΔΙΟΡΘΩΘΗΚΕ: Αφαιρέθηκε το λάθος \ PacmsgData
                 deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${msgData.messageId}')">X</button>\`;
             }
 
@@ -210,17 +215,12 @@ wss.on('connection', (ws) => {
     ws.on('message', async (message) => {
         const data = JSON.parse(message.toString());
 
-        // 1. ΟΤΑΝ ΜΙΑ ΣΥΣΚΕΥΗ ΖΗΤΑΕΙ ΤΟ ΙΣΤΟΡΙΚΟ: Το τραβάμε live από τη βάση Supabase!
         if (data.type === 'request-history') {
             try {
-                // Καλούμε το API της Supabase για να μας φέρει τα τελευταία 20 μηνύματα
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/chat_history?select=*&order=created_at.desc&limit=20`, {
                     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
                 });
                 const messages = await response.json();
                 
-                // Τα μηνύματα έρχονται ανάποδα λόγω του desc, οπότε τα γυρνάμε στη σωστή σειρά
                 if (Array.isArray(messages)) {
-                    const sortedMessages = messages.reverse().map(m => ({
-                        messageId: m.message_id,
-username: m.username,text: m.text,color: m.color,userId: m.user_id}));ws.send(JSON.stringify({ type: 'history', messages: sortedMessages }));}} catch (err) {console.error('Σφάλμα φόρτωσης ιστορικού:', err);ws.send(JSON.stringify({ type: 'history', messages: [] }));}return;}// 2. ΟΤΑΝ ΕΡΧΕΤΑΙ ΝΕΟ ΜΗΝΥΜΑ: Το αποθηκεύουμε μόνιμα στη βάση Supabaseif (data.type === 'chat-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history, {method: 'POST',headers: {'apikey': SUPABASE_KEY,'Authorization': Bearer ${SUPABASE_KEY},'Content-Type': 'application/json','Prefer': 'return=minimal'},body: JSON.stringify({message_id: data.messageId,username: data.username,text: data.text,color: data.color,user_id: data.userId})});} catch (err) {console.error('Σφάλμα αποθήκευσης στη βάση:', err);}}// 3. ΟΤΑΝ ΕΡΧΕΤΑΙ ΕΝΤΟΛΗ ΔΙΑΓΡΑΦΗΣ: Το σβήνουμε μόνιμα και από τη βάση Supabaseif (data.type === 'delete-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history?message_id=eq.${data.messageId}, {method: 'DELETE',headers: { 'apikey': SUPABASE_KEY, 'Authorization': Bearer ${SUPABASE_KEY} }});} catch (err) {console.error('Σφάλμα διαγραφής από τη βάση:', err);}}// Προώθηση σε όλουςwss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
+const sortedMessages = messages.reverse().map(m => ({messageId: m.message_id,username: m.username,text: m.text,color: m.color,userId: m.user_id}));ws.send(JSON.stringify({ type: 'history', messages: sortedMessages }));}} catch (err) {console.error('Σφάλμα φόρτωσης ιστορικού:', err);ws.send(JSON.stringify({ type: 'history', messages: [] }));}return;}if (data.type === 'chat-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history, {method: 'POST',headers: {'apikey': SUPABASE_KEY,'Authorization': Bearer ${SUPABASE_KEY},'Content-Type': 'application/json','Prefer': 'return=minimal'},body: JSON.stringify({message_id: data.messageId,username: data.username,text: data.text,color: data.color,user_id: data.userId})});} catch (err) {console.error('Σφάλμα αποθήκευσης στη βάση:', err);}}if (data.type === 'delete-message') {try {await fetch(${SUPABASE_URL}/rest/v1/chat_history?message_id=eq.${data.messageId}, {method: 'DELETE',headers: { 'apikey': SUPABASE_KEY, 'Authorization': Bearer ${SUPABASE_KEY} }});} catch (err) {console.error('Σφάλμα διαγραφής από τη βάση:', err);}}wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
