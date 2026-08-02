@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
             #chat-header { background: #007bff; color: white; padding: 12px; font-weight: bold; text-align: center; font-size: 16px; position: relative; }
             #online-counter { position: absolute; right: 15px; top: 12px; background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; }
             #chat-messages { flex: 1; padding: 15px; overflow-y: auto; font-size: 14px; line-height: 1.4; border-bottom: 1px solid #eee; }
-            #chat-inputs { padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+            #chat-inputs { padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
             #chat-username { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             
             /* Στυλ για τη γραμμή με τις φατσούλες */
