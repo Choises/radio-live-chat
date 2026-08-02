@@ -26,14 +26,14 @@ app.get('/', (req, res) => {
             #chat-header { background: #007bff; color: white; padding: 12px; font-weight: bold; text-align: center; font-size: 16px; position: relative; }
             #online-counter { position: absolute; right: 15px; top: 12px; background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; }
             #chat-messages { flex: 1; padding: 15px; overflow-y: auto; font-size: 14px; line-height: 1.4; border-bottom: 1px solid #eee; }
-            #chat-inputs { padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
-            #chat-username { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             
             /* Στυλ για τη γραμμή με τις φατσούλες */
-            #emoji-bar { display: flex; gap: 8px; padding: 2px 5px; overflow-x: auto; font-size: 18px; }
-            .emoji-btn { cursor: pointer; border: none; background: none; padding: 3px; border-radius: 4px; transition: transform 0.1s; }
-            .emoji-btn:hover { transform: scale(1.2); background: #eee; }
+            #emoji-bar { display: flex; gap: 10px; padding: 8px 12px; background: #f1f1f1; border-bottom: 1px solid #ddd; font-size: 20px; justify-content: center; }
+            .emoji-btn { cursor: pointer; border: none; background: none; padding: 2px; transition: transform 0.1s; }
+            .emoji-btn:hover { transform: scale(1.3); }
             
+            #chat-inputs { padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #eee; }
+            #chat-username { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             .input-row { display: flex; gap: 5px; }
             #chat-message { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             #chat-send { background: #007bff; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
@@ -49,24 +49,25 @@ app.get('/', (req, res) => {
             📻 Radio Live Chat
             <span id="online-counter">Online: 0</span>
         </div>
+        
         <div id="chat-messages">
             <div id="connection-status" style="color: #888; text-align: center; font-style: italic;">Σύνδεση στο chat...</div>
         </div>
+
+        <!-- ΜΕΤΑΦΟΡΑΣ ΕΞΩ ΑΠΟ ΤΑ INPUTS - ΕΔΩ ΕΙΝΑΙ ΠΑΝΤΑ ΟΡΑΤΗ ΚΑΙ ΕΛΕΥΘΕΡΗ -->
+        <div id="emoji-bar">
+            <button class="emoji-btn" onclick="insertEmoji('😀')">😀</button>
+            <button class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
+            <button class="emoji-btn" onclick="insertEmoji('😍')">😍</button>
+            <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+            <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+            <button class="emoji-btn" onclick="insertEmoji('👏')">👏</button>
+            <button class="emoji-btn" onclick="insertEmoji('📻')">📻</button>
+            <button class="emoji-btn" onclick="insertEmoji('🎶')">🎶</button>
+        </div>
+
         <div id="chat-inputs">
             <input type="text" id="chat-username" placeholder="Το όνομά σας..." />
-            
-            <!-- Η ΝΕΑ ΓΡΑΜΜΗ ΜΕ ΤΑ ΕΤΟΙΜΑ ΚΟΥΜΠΙΑ EMOJI -->
-            <div id="emoji-bar">
-                <button class="emoji-btn" onclick="insertEmoji('😀')">😀</button>
-                <button class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
-                <button class="emoji-btn" onclick="insertEmoji('😍')">😍</button>
-                <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
-                <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
-                <button class="emoji-btn" onclick="insertEmoji('👏')">👏</button>
-                <button class="emoji-btn" onclick="insertEmoji('📻')">📻</button>
-                <button class="emoji-btn" onclick="insertEmoji('🎶')">🎶</button>
-            </div>
-
             <div class="input-row">
                 <input type="text" id="chat-message" placeholder="Γράψτε ένα μήνυμα..." disabled />
                 <button id="chat-send" disabled>Αποστολή</button>
@@ -112,13 +113,13 @@ app.get('/', (req, res) => {
             socket.send(JSON.stringify({ type: 'request-history' }));
         };
 
-        // ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΝΑ ΜΠΑΙΝΕΙ Η ΦΑΤΣΟΥΛΑ ΣΤΟ ΚΟΥΤΙ ΜΗΝΥΜΑΤΟΣ
+        // ΣΥΝΑΡΤΗΣΗ ΓΙΑ EMOJI
         function insertEmoji(emoji) {
-            // Αν το πλαίσιο είναι κλειδωμένο (πριν τη σύνδεση), μην κάνεις τίποτα
+            // Αν ο χρήστης δεν έχει συνδεθεί ακόμα, του ζητάμε να περιμένει τη σύνδεση
             if(messageInput.disabled) return;
             
             messageInput.value += emoji;
-            messageInput.focus(); // Ξαναφέρνει τον κέρσορα στο πλαίσιο κειμένου
+            messageInput.focus();
         }
 
         socket.onmessage = (event) => {
@@ -214,4 +215,5 @@ app.get('/', (req, res) => {
         }
 
         sendButton.addEventListener('click', sendMessage);
-messageInput.addEventListener('keypress', (e) => {if (e.key === 'Enter') sendMessage();});`);});// Διαχείριση των WebSockets (Server)wss.on('connection', (ws) => {onlineCount++;broadcastOnlineCount();ws.on('message', (message) => {const data = JSON.parse(message.toString());if (data.type === 'request-history') {ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));return;}if (data.type === 'chat-message') {messageHistory.push(data);if (messageHistory.length > 20) {messageHistory.shift();}}if (data.type === 'delete-message') {messageHistory = messageHistory.filter(msg => msg.messageId !== data.messageId);}wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
+        messageInput.addEventListener('keypress', (e) => {
+if (e.key === 'Enter') sendMessage();});`);});// Διαχείριση των WebSockets (Server)wss.on('connection', (ws) => {onlineCount++;broadcastOnlineCount();ws.on('message', (message) => {const data = JSON.parse(message.toString());if (data.type === 'request-history') {ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));return;}if (data.type === 'chat-message') {messageHistory.push(data);if (messageHistory.length > 20) {messageHistory.shift();}}if (data.type === 'delete-message') {messageHistory = messageHistory.filter(msg => msg.messageId !== data.messageId);}wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
