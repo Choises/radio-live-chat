@@ -28,6 +28,12 @@ app.get('/', (req, res) => {
             #chat-messages { flex: 1; padding: 15px; overflow-y: auto; font-size: 14px; line-height: 1.4; border-bottom: 1px solid #eee; }
             #chat-inputs { padding: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
             #chat-username { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+            
+            /* Στυλ για τη γραμμή με τις φατσούλες */
+            #emoji-bar { display: flex; gap: 8px; padding: 2px 5px; overflow-x: auto; font-size: 18px; }
+            .emoji-btn { cursor: pointer; border: none; background: none; padding: 3px; border-radius: 4px; transition: transform 0.1s; }
+            .emoji-btn:hover { transform: scale(1.2); background: #eee; }
+            
             .input-row { display: flex; gap: 5px; }
             #chat-message { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
             #chat-send { background: #007bff; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
@@ -48,6 +54,19 @@ app.get('/', (req, res) => {
         </div>
         <div id="chat-inputs">
             <input type="text" id="chat-username" placeholder="Το όνομά σας..." />
+            
+            <!-- Η ΝΕΑ ΓΡΑΜΜΗ ΜΕ ΤΑ ΕΤΟΙΜΑ ΚΟΥΜΠΙΑ EMOJI -->
+            <div id="emoji-bar">
+                <button class="emoji-btn" onclick="insertEmoji('😀')">😀</button>
+                <button class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
+                <button class="emoji-btn" onclick="insertEmoji('😍')">😍</button>
+                <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+                <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+                <button class="emoji-btn" onclick="insertEmoji('👏')">👏</button>
+                <button class="emoji-btn" onclick="insertEmoji('📻')">📻</button>
+                <button class="emoji-btn" onclick="insertEmoji('🎶')">🎶</button>
+            </div>
+
             <div class="input-row">
                 <input type="text" id="chat-message" placeholder="Γράψτε ένα μήνυμα..." disabled />
                 <button id="chat-send" disabled>Αποστολή</button>
@@ -90,10 +109,17 @@ app.get('/', (req, res) => {
             statusContainer.style.fontWeight = 'bold';
             messageInput.disabled = false;
             sendButton.disabled = false;
-
-            // ΜΟΛΙΣ ΑΝΟΙΞΕΙ Η ΣΥΝΔΕΣΗ, ΖΗΤΑΜΕ ΤΟ ΙΣΤΟΡΙΚΟ ΑΠΟ ΤΟΝ SERVER
             socket.send(JSON.stringify({ type: 'request-history' }));
         };
+
+        // ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΝΑ ΜΠΑΙΝΕΙ Η ΦΑΤΣΟΥΛΑ ΣΤΟ ΚΟΥΤΙ ΜΗΝΥΜΑΤΟΣ
+        function insertEmoji(emoji) {
+            // Αν το πλαίσιο είναι κλειδωμένο (πριν τη σύνδεση), μην κάνεις τίποτα
+            if(messageInput.disabled) return;
+            
+            messageInput.value += emoji;
+            messageInput.focus(); // Ξαναφέρνει τον κέρσορα στο πλαίσιο κειμένου
+        }
 
         socket.onmessage = (event) => {
             try {
@@ -115,10 +141,8 @@ app.get('/', (req, res) => {
                 }
 
                 if (data.type === 'history') {
-                    // Καθαρίζουμε παλιά μηνύματα και κρατάμε μόνο το status σύνδεσης
                     const statusHtml = statusContainer.outerHTML;
                     messagesContainer.innerHTML = statusHtml;
-                    
                     data.messages.forEach(msg => {
                         renderSingleMessage(msg, false); 
                     });
@@ -190,54 +214,4 @@ app.get('/', (req, res) => {
         }
 
         sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-    </script>
-    </body>
-    </html>
-    `);
-});
-
-// Διαχείριση των WebSockets (Server)
-wss.on('connection', (ws) => {
-    onlineCount++;
-    broadcastOnlineCount();
-
-    ws.on('message', (message) => {
-        const data = JSON.parse(message.toString());
-
-        // Ο SERVER ΣΤΕΛΝΕΙ ΤΟ ΙΣΤΟΡΙΚΟ ΜΟΝΟ ΟΤΑΝ ΤΟΥ ΤΟ ΖΗΤΗΣΕΙ Η ΣΥΣΚΕΥΗ
-        if (data.type === 'request-history') {
-            ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));
-            return;
-        }
-
-        if (data.type === 'chat-message') {
-            messageHistory.push(data);
-            if (messageHistory.length > 20) {
-                messageHistory.shift(); 
-            }
-        }
-
-        if (data.type === 'delete-message') {
-            messageHistory = messageHistory.filter(msg => msg.messageId !== data.messageId);
-        }
-
-        wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(message.toString());
-            }
-        });
-    });
-
-    ws.on('close', () => {
-        onlineCount--;
-        if (onlineCount < 0) onlineCount = 0;
-        broadcastOnlineCount();
-    });
-});
-
-function broadcastOnlineCount() {
-    const data = JSON.stringify({ type: 'update-online', count: onlineCount });
-wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
+messageInput.addEventListener('keypress', (e) => {if (e.key === 'Enter') sendMessage();});`);});// Διαχείριση των WebSockets (Server)wss.on('connection', (ws) => {onlineCount++;broadcastOnlineCount();ws.on('message', (message) => {const data = JSON.parse(message.toString());if (data.type === 'request-history') {ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));return;}if (data.type === 'chat-message') {messageHistory.push(data);if (messageHistory.length > 20) {messageHistory.shift();}}if (data.type === 'delete-message') {messageHistory = messageHistory.filter(msg => msg.messageId !== data.messageId);}wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
