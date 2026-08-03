@@ -36,6 +36,10 @@ app.get('/', (req, res) => {
             /* Στυλ για το κόκκινο κουμπί διαγραφής */
             .delete-btn { background: #dc3545; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 8px; font-weight: bold; }
             .delete-btn:hover { background: #bd2130; }
+            
+            /* Στυλ για τα Links μέσα στο Chat */
+            .chat-link { color: #0056b3; text-decoration: underline; font-weight: bold; }
+            .chat-link:hover { color: #003d82; }
         </style>
     </head>
     <body>
@@ -61,7 +65,7 @@ app.get('/', (req, res) => {
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(protocol + window.location.host);
 
-        // --- ΒΑΛΤΕ ΤΑ ΔΙΚΑ ΣΟΥ Links ΗΧΩΝ ΑΝΑΜΕΣΑ ΣΤΑ ΑΥΤΑΚΙΑ ---
+        // --- Τα Links των ήχων σας παρέμειναν άθικτα ---
         const soundJoin = new Audio('https://xat.gr/rooms/sounds/private.mp3?v=1.38'); 
         const soundSend = new Audio('https://xat.gr/rooms/sounds/username.mp3?v=1.38'); 
         const soundReceive = new Audio('https://xat.gr/rooms/sounds/whistle.mp3?v=1.38'); 
@@ -70,11 +74,9 @@ app.get('/', (req, res) => {
         soundSend.volume = 0.3;
         soundReceive.volume = 0.5;
 
-        // Έλεγχος αν ο χρήστης είναι admin (μέσω του URL ?admin=true)
         const urlParams = new URLSearchParams(window.location.search);
         const isAdmin = urlParams.get('admin') === 'true';
 
-        // Ρυθμίσεις χρωμάτων και αναγνωριστικών
         const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#e83e8c', '#20c997', '#17a2b8', '#ffc107'];
         const userColor = colors[Math.floor(Math.random() * colors.length)];
         const myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
@@ -87,6 +89,12 @@ app.get('/', (req, res) => {
         const onlineCounter = document.getElementById('online-counter');
 
         let lastOnlineCount = 0;
+
+        // ΣΥΝΑΡΤΗΣΗ ΠΟΥ ΜΕΤΑΤΡΕΠΕΙ ΤΑ ΚΕΙΜΕΝΑ URL ΣΕ ΠΑΤΗΣΙΜΑ LINKS
+        function linkify(text) {
+            const urlPattern = /(\\b(https?|ftp|file):\\s*\\/\\/[-A-Z0-9+&@#\\/%?=~_|!:,.;]*[-A-Z0-9+&@#\\/%=~_|])/ig;
+            return text.replace(urlPattern, '<a href="$1" target="_blank" class="chat-link">$1</a>');
+        }
 
         socket.onopen = () => {
             statusContainer.innerHTML = '🟢 Συνδεθήκατε στο Chat!';
@@ -109,27 +117,27 @@ app.get('/', (req, res) => {
                     return;
                 }
 
-                // Λήψη εντολής διαγραφής: Σβήνει το μήνυμα από την οθόνη ακαριαία
                 if (data.type === 'delete-message') {
                     const elToRemove = document.getElementById(data.messageId);
                     if (elToRemove) elToRemove.remove();
                     return;
                 }
 
-                // Δημιουργία νέου μηνύματος με ID
                 const messageElement = document.createElement('div');
                 messageElement.id = data.messageId;
                 messageElement.style.marginBottom = '8px';
                 messageElement.style.display = 'flex';
                 messageElement.style.alignItems = 'center';
 
-                // Αν είμαι admin, πρόσθεσε το κουμπί X χωρίς confirm
                 let deleteHtml = '';
                 if (isAdmin) {
                     deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${data.messageId}')">X</button>\`;
                 }
 
-                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${data.text}</div>\`;
+                // ΕΦΑΡΜΟΓΗ ΤΟΥ LINKIFY: Μετατροπή του κειμένου σε πατήσιμο link αν είναι URL
+                const formattedText = linkify(data.text);
+
+                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${formattedText}</div>\`;
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
@@ -155,7 +163,6 @@ app.get('/', (req, res) => {
 
             soundSend.play().catch(e => console.log('Απαιτείται κλικ'));
 
-            // Δημιουργία τυχαίου ID για το μήνυμα
             const uniqueMsgId = 'msg_' + Math.random().toString(36).substr(2, 9);
 
             const messageData = { 
@@ -170,7 +177,6 @@ app.get('/', (req, res) => {
             messageInput.value = '';
         }
 
-        // Η ΣΥΝΑΡΤΗΣΗ ΔΙΑΓΡΑΦΗΣ: Στέλνει αμέσως την εντολή χωρίς παράθυρο επιβεβαίωσης!
         function requestDelete(msgId) {
             const deleteData = { type: 'delete-message', messageId: msgId };
             socket.send(JSON.stringify(deleteData));
