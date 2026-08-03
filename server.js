@@ -40,6 +40,10 @@ app.get('/', (req, res) => {
             /* Στυλ για τα Links μέσα στο Chat */
             .chat-link { color: #0056b3; text-decoration: underline; font-weight: bold; }
             .chat-link:hover { color: #003d82; }
+
+            /* Στυλ για τις εικόνες και τα GIF που εμφανίζονται live */
+            .chat-image { max-width: 150px; max-height: 150px; border-radius: 5px; display: block; margin-top: 5px; border: 1px solid #ddd; cursor: pointer; }
+            .chat-image:hover { transform: scale(1.02); }
         </style>
     </head>
     <body>
@@ -90,10 +94,20 @@ app.get('/', (req, res) => {
 
         let lastOnlineCount = 0;
 
-        // ΣΥΝΑΡΤΗΣΗ ΠΟΥ ΜΕΤΑΤΡΕΠΕΙ ΤΑ ΚΕΙΜΕΝΑ URL ΣΕ ΠΑΤΗΣΙΜΑ LINKS
+        // ΑΝΑΒΑΘΜΙΣΜΕΝΗ ΣΥΝΑΡΤΗΣΗ ΠΟΥ ΕΛΕΓΧΕΙ ΑΝ ΤΟ LINK ΕΙΝΑΙ ΕΙΚΟΝΑ/GIF Ή ΑΠΛΟ URL
         function linkify(text) {
             const urlPattern = /(\\b(https?|ftp|file):\\s*\\/\\/[-A-Z0-9+&@#\\/%?=~_|!:,.;]*[-A-Z0-9+&@#\\/%=~_|])/ig;
-            return text.replace(urlPattern, '<a href="$1" target="_blank" class="chat-link">$1</a>');
+            
+            return text.replace(urlPattern, function(url) {
+                // Έλεγχος αν η κατάληξη του link είναι εικόνα ή GIF (αγνοώντας κεφαλαία/μικρά)
+                if (url.match(/\\.(jpeg|jpg|gif|png|webp)(\\?.*)?$/i)) {
+                    // Αν είναι εικόνα, επιστρέφει το link και από κάτω την ίδια την εικόνα ορατή (κλικάροντας ανοίγει σε μεγάλο μέγεθος)
+                    return \`<a href="\${url}" target="_blank" class="chat-link">\${url}</a><img src="\${url}" class="chat-image" onclick="window.open('\${url}', '_blank')" alt="Εικόνα Chat" />\`;
+                } else {
+                    // Αν είναι απλό link (π.χ. YouTube), επιστρέφει απλό πατήσιμο σύνδεσμο
+                    return \`<a href="\${url}" target="_blank" class="chat-link">\${url}</a>\`;
+                }
+            });
         }
 
         socket.onopen = () => {
@@ -127,17 +141,17 @@ app.get('/', (req, res) => {
                 messageElement.id = data.messageId;
                 messageElement.style.marginBottom = '8px';
                 messageElement.style.display = 'flex';
-                messageElement.style.alignItems = 'center';
+                messageElement.style.alignItems = 'flex-start'; // Ευθυγράμμιση για να κάθεται καλά η εικόνα
 
                 let deleteHtml = '';
                 if (isAdmin) {
-                    deleteHtml = \`<button class="delete-btn" onclick="requestDelete('\${data.messageId}')">X</button>\`;
+                    deleteHtml = \`<button class="delete-btn" style="margin-top: 2px;" onclick="requestDelete('\ PacmsgData.messageId}')">X</button>\`;
                 }
 
-                // ΕΦΑΡΜΟΓΗ ΤΟΥ LINKIFY: Μετατροπή του κειμένου σε πατήσιμο link αν είναι URL
                 const formattedText = linkify(data.text);
 
-                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> \${formattedText}</div>\`;
+                // ΔΙΟΡΘΩΘΗΚΕ: Προσθήκη σωστής δομής για να μην σπάει η διαγραφή με την εικόνα
+                messageElement.innerHTML = \`\${deleteHtml}<div><strong style="color: \${data.color || '#007bff'};">\${data.username}:</strong> <span>\${formattedText}</span></div>\`;
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
@@ -198,29 +212,4 @@ wss.on('connection', (ws) => {
     broadcastOnlineCount();
 
     ws.on('message', (message) => {
-        wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(message.toString());
-            }
-        });
-    });
-
-    ws.on('close', () => {
-        onlineCount--;
-        if (onlineCount < 0) onlineCount = 0;
-        broadcastOnlineCount();
-    });
-});
-
-function broadcastOnlineCount() {
-    const data = JSON.stringify({ type: 'update-online', count: onlineCount });
-    wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(data);
-        }
-    });
-}
-
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(message.toString());}});});ws.on('close', () => {onlineCount--;if (onlineCount < 0) onlineCount = 0;broadcastOnlineCount();});});function broadcastOnlineCount() {const data = JSON.stringify({ type: 'update-online', count: onlineCount });wss.clients.forEach((client) => {if (client.readyState === WebSocket.OPEN) {client.send(data);}});}server.listen(PORT, () => {console.log(Server running on port ${PORT});});
