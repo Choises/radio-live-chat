@@ -94,9 +94,9 @@ app.get('/', (req, res) => {
             const urlPattern = /(\\b(https?|ftp|file):\\s*\\/\\/[-A-Z0-9+&@#\\/%?=~_|!:,.;]*[-A-Z0-9+&@#\\/%=~_|])/ig;
             
             return text.replace(urlPattern, function(url) {
-                // Έλεγχος αν περιέχει κατάληξη εικόνας
                 if (url.match(/\\.(jpeg|jpg|gif|png|webp)(\\?.*)?$/i)) {
-                    return \`<a href="\${url}" target="_blank" class="chat-link">\${url}</a><img src="\${url}" class="chat-image" onclick="window.open('\${url}', '_blank')" alt="Εικόνα Chat" />\`;
+                    // ΑΦΑΙΡΕΘΗΚΕ ΤΟ ΚΕΙΜΕΝΟ: Επιστρέφει ΜΟΝΟ την εικόνα, χωρίς το μπλε link κειμένου!
+                    return \`<img src="\${url}" class="chat-image" onclick="window.open('\${url}', '_blank')" alt="Εικόνα Chat" />\`;
                 } else {
                     return \`<a href="\${url}" target="_blank" class="chat-link">\${url}</a>\`;
                 }
@@ -138,7 +138,6 @@ app.get('/', (req, res) => {
 
                 let deleteHtml = '';
                 if (isAdmin) {
-                    // ΔΙΟΡΘΩΘΗΚΕ ΤΟ ΛΑΘΟΣ ΣΗΜΕΙΟ ΕΔΩ:
                     deleteHtml = \`<button class="delete-btn" style="margin-top: 2px;" onclick="requestDelete('\${data.messageId}')">X</button>\`;
                 }
 
