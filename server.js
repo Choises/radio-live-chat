@@ -1,45 +1,50 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const cors = require('cors');
 
 const app = express();
-const server = http.createServer(app);
+app.use(cors());
 
-// Ρύθμιση του Socket.io με άδεια (CORS) για να συνδέεται ελεύθερα με το Blogspot
+const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: "*", // Επιτρέπει τη σύνδεση από οποιοδήποτε site (GitHub Pages)
         methods: ["GET", "POST"]
-    },
-    maxHttpBufferSize: 1e7 // Επιτρέπουμε μεγάλα αρχεία (μέχρι 10MB) για τα φωνητικά!
+    }
 });
 
-const PORT = process.env.PORT || 10000;
-let onlineCount = 0;
+// Κρατάμε τον αριθμό των online χρηστών
+let onlineUsers = 0;
 
-app.get('/', (req, res) => {
-    res.send('Ο Socket.io Server λειτουργεί κανονικά και υποστηρίζει Φωνητικά Μηνύματα!');
-});
-
-// Διαχείριση των συνδέσεων μέσω Socket.io
 io.on('connection', (socket) => {
-    onlineCount++;
-    io.emit('update-online', onlineCount);
+    // 1. Ένας νέος χρήστης συνδέθηκε! Αυξάνουμε τον μετρητή
+    onlineUsers++;
+    
+    // Στέλνουμε live τον νέο αριθμό σε ΟΛΟΥΣ τους συνδεδεμένους χρήστες
+    io.emit('user-count', onlineUsers);
+    
+    console.log(`Ένας χρήστης συνδέθηκε. Online: ${onlineUsers}`);
 
-    // Όταν έρχεται οποιοδήποτε μήνυμα (κείμενο, εικόνα, GIF ή Φωνητικό)
+    // Ακούμε για μηνύματα και τα κάνουμε broadcast σε όλους
     socket.on('send-message', (data) => {
-        // Το αναμεταδίδουμε αμέσως σε όλους τους ακροατές
         io.emit('receive-message', data);
     });
 
+    // 2. Ένας χρήστης αποσυνδέθηκε (έκλεισε τη σελίδα)
     socket.on('disconnect', () => {
-        onlineCount--;
-        if (onlineCount < 0) onlineCount = 0;
-        io.emit('update-online', onlineCount);
+        onlineUsers--;
+        if (onlineUsers < 0) onlineUsers = 0; // Ασφάλεια για να μην πάει υπό του μηδενός
+        
+        // Ενημερώνουμε live ΟΛΟΥΣ τους υπόλοιπους για το νέο νούμερο
+        io.emit('user-count', onlineUsers);
+        
+        console.log(`Ένας χρήστης αποσυνδέθηκε. Online: ${onlineUsers}`);
     });
 });
 
+// Ο server τρέχει στη θύρα που δίνει το Render ή στην 3000 τοπικά
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
-
